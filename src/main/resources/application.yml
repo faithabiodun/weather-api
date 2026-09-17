@@ -4,8 +4,8 @@ spring:
 
 weather:
   provider:
-    base-url: https://api.openweathermap.org/data/2.5
-    api-key: ${WEATHER_API_KEY}     # no default: refuse to start without it
+    base-url: https://api.openweathermap.org
+    api-key: ${WEATHER-API-KEY}     # no default: refuse to start without it
     connect-timeout: 2s             # how long to wait to REACH them
     read-timeout: 4s                # how long to wait for the whole answer
   cache:
@@ -26,3 +26,6 @@ management:
     web:
       exposure:
         include: health,info,metrics    # what Actuator is allowed to show
+  health:
+    redis:
+      enabled: false
