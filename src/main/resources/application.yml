@@ -1,0 +1,28 @@
+spring:
+  application:
+    name: weather-api
+
+weather:
+  provider:
+    base-url: https://api.openweathermap.org/data/2.5
+    api-key: ${WEATHER_API_KEY}     # no default: refuse to start without it
+    connect-timeout: 2s             # how long to wait to REACH them
+    read-timeout: 4s                # how long to wait for the whole answer
+  cache:
+    ttl: 10m                        # how long a fresh answer stays fresh
+    stale-ttl: 6h                   # how long we may serve an old answer
+    jitter: 60s                     # random spread, so keys do not all die together
+  retry:
+    attempts: 3                     # the first try plus two more
+    base-delay: 200ms               # doubled each time, plus a random bit
+  breaker:
+    failure-threshold: 5            # failures in a row before we stop
+    open-duration: 30s              # how long we stop for
+  budget:
+    per-minute: 50                  # OUR limit, set below THEIR limit
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics    # what Actuator is allowed to show
