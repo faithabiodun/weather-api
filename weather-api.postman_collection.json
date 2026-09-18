@@ -1,0 +1,304 @@
+{
+  "info": {
+    "_postman_id": "7c1e2a4b-3f5d-4e6a-9b8c-1d2e3f4a5b6c",
+    "name": "Weather API",
+    "description": "A caching wrapper around OpenWeatherMap. Run the whole collection in order with the Local environment selected. Needs Redis (docker compose up -d) and the app running on {{baseUrl}}.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "01 Health",
+      "description": "Is the app up, and can it reach Redis?",
+      "item": [
+        {
+          "name": "Health check",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"app is UP\", () => pm.expect(pm.response.json().status).to.eql(\"UP\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/actuator/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["actuator", "health"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "02 Weather",
+      "description": "The cache in action: a first call, a cached call, and a different spelling of the same city.",
+      "item": [
+        {
+          "name": "Get weather (cold)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "pm.test(\"has our shape, not theirs\", () => {",
+                  "    const b = pm.response.json();",
+                  "    pm.expect(b).to.have.all.keys(\"location\", \"temperatureC\", \"feelsLike\", \"condition\",",
+                  "        \"humidity\", \"windKph\", \"observedAt\", \"cached\", \"cacheAgeSeconds\");",
+                  "});",
+                  "",
+                  "pm.test(\"X-Cache header is present\", () => {",
+                  "    pm.expect(pm.response.headers.get(\"X-Cache\")).to.be.oneOf([\"MISS\", \"HIT\", \"STALE\"]);",
+                  "});",
+                  "",
+                  "// Not asserted as MISS on purpose: if Lagos is already cached from an",
+                  "// earlier run this is a HIT, and the collection must pass every time.",
+                  "pm.environment.set(\"coldMs\", pm.response.responseTime);",
+                  "console.log(\"cold:\", pm.response.responseTime + \"ms\", pm.response.headers.get(\"X-Cache\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/weather/Lagos",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "weather", "Lagos"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get weather (warm)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "// A header is exact; timing is not. This is the test that proves the cache works.",
+                  "pm.test(\"served from cache\", () => pm.expect(pm.response.headers.get(\"X-Cache\")).to.eql(\"HIT\"));",
+                  "",
+                  "pm.test(\"body says cached, and how old it is\", () => {",
+                  "    const b = pm.response.json();",
+                  "    pm.expect(b.cached).to.be.true;",
+                  "    pm.expect(b.cacheAgeSeconds).to.be.a(\"number\");",
+                  "});",
+                  "",
+                  "console.log(\"cold:\", pm.environment.get(\"coldMs\") + \"ms\", \"warm:\", pm.response.responseTime + \"ms\");"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/weather/Lagos",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "weather", "Lagos"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Different spelling, same entry",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "// CacheKey normalises the city, so LAGOS and Lagos share one entry.",
+                  "pm.test(\"LAGOS hits the lagos entry\", () => pm.expect(pm.response.headers.get(\"X-Cache\")).to.eql(\"HIT\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/weather/LAGOS",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "weather", "LAGOS"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "03 Errors",
+      "description": "Bad input gets a clean, readable error -- never a stack trace.",
+      "item": [
+        {
+          "name": "City that does not exist",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"404\", () => pm.response.to.have.status(404));",
+                  "pm.test(\"readable error\", () => pm.expect(pm.response.json().error).to.eql(\"CITY_NOT_FOUND\"));",
+                  "pm.test(\"no stack trace\", () => {",
+                  "    pm.expect(pm.response.text()).to.not.include(\"Exception\");",
+                  "    pm.expect(pm.response.text()).to.not.include(\"com.example\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/weather/Zzzzqqq",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "weather", "Zzzzqqq"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "City name too long",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// The controller says @Size(max = 60). 61 characters is the caller's",
+                  "// mistake, so the right answer is 400 -- not 500.",
+                  "pm.test(\"400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"no stack trace\", () => {",
+                  "    pm.expect(pm.response.text()).to.not.include(\"Exception\");",
+                  "    pm.expect(pm.response.text()).to.not.include(\"com.example\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/weather/{{longCity}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "weather", "{{longCity}}"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "04 Metrics",
+      "description": "The four numbers that answer \"is it us or them?\".",
+      "item": [
+        {
+          "name": "Cache hit ratio",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const ratio = pm.response.json().measurements[0].value;",
+                  "pm.test(\"hit ratio is a fraction between 0 and 1\", () => pm.expect(ratio).to.be.within(0, 1));",
+                  "console.log(\"hit ratio:\", ratio);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/actuator/metrics/weather.cache.hit_ratio",
+              "host": ["{{baseUrl}}"],
+              "path": ["actuator", "metrics", "weather.cache.hit_ratio"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Requests by source",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "// One tag, three values. Never a city tag: that is a cardinality explosion.",
+                  "pm.test(\"split by cache, upstream and stale\", () => {",
+                  "    const source = pm.response.json().availableTags.find(t => t.tag === \"source\");",
+                  "    pm.expect(source.values).to.have.members([\"cache\", \"upstream\", \"stale\"]);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/actuator/metrics/weather.requests",
+              "host": ["{{baseUrl}}"],
+              "path": ["actuator", "metrics", "weather.requests"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Breaker state",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "// 0 closed, 1 half-open, 2 open. On a normal day it is closed.",
+                  "pm.test(\"breaker is closed\", () => pm.expect(pm.response.json().measurements[0].value).to.eql(0));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/actuator/metrics/weather.breaker.state",
+              "host": ["{{baseUrl}}"],
+              "path": ["actuator", "metrics", "weather.breaker.state"]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+name: weather-api
+values:
+  - key: baseUrl
+    value: ''
+  - key: coldMs
+    value: ''
+  - key: longCity
+    value: ''
