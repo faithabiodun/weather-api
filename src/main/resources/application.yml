@@ -3,13 +3,15 @@ spring:
     name: weather-api
   data:
     redis:
-      host: localhost               # the Docker container from docker-compose.yml
+      host: localhost               # the Docker container from compose.yaml
       port: 6379
+      timeout: 500ms                # a cache that is slow is worse than no cache at all
+      connect-timeout: 500ms
 
 weather:
   provider:
     base-url: https://api.openweathermap.org/data/2.5
-    api-key: ${WEATHER-API-KEY}     # no default: refuse to start without it
+    api-key: ${WEATHER_API_KEY}     # no default: refuse to start without it
     connect-timeout: 2s             # how long to wait to REACH them
     read-timeout: 4s                # how long to wait for the whole answer
   cache:
@@ -30,3 +32,6 @@ management:
     web:
       exposure:
         include: health,info,metrics    # what Actuator is allowed to show
+  endpoint:
+    health:
+      show-details: always              # learning only: shows each check (redis, disk...). Remove before deploying

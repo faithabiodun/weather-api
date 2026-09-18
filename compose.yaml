@@ -1,0 +1,18 @@
+# One command starts Redis. Nothing is installed on your machine, and
+# "docker compose down" removes every trace of it.
+services:
+  redis:
+    image: redis:7-alpine                 # small, official, fixed major version
+    container_name: weather-redis
+    ports:
+      - "6379:6379"                       # your machine's 6379 -> the container's 6379
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    # maxmemory:   never let the cache eat the machine
+    # allkeys-lru: when full, throw away whatever was used least recently --
+    #              right for a cache, wrong for storage
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped               # comes back on its own when Docker Desktop starts
